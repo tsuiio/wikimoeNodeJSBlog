@@ -97,7 +97,7 @@ app.use((err, req, res, next) => {
   next()
 })
 // robots.txt
-app.use('/seo/blog/robots.txt', async function (req, res) {
+app.use('/robots.txt', async function (req, res) {
   res.setHeader('Content-Type', 'text/plain')
   res.send(global.$globalConfig?.siteSettings?.siteRobotsTxt || '')
 })

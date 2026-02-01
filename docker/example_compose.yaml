@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-go/master/schema/compose-spec.json
+services:
+  blog:
+    restart: always
+    build:
+      dockerfile: ./docker/Dockerfile.blog
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=ingress
+      - traefik.http.services.blog.loadbalancer.server.port=3007
+      - traefik.http.routers.blog.service=blog
+      - traefik.http.routers.blog.rule=Host(`wikimoe.com`) && PathPrefix(`/`)
+      - traefik.http.routers.blog.entrypoints=web,websecure
+      - traefik.http.routers.blog.tls.certresolver=lets-prod
+    env_file:
+      - .env
+    depends_on:
+      - server
+    # ports:
+    #   - "3007:3007"
+    networks:
+      - external
+      - ingress
+
+  server:
+    restart: always
+    build:
+      dockerfile: ./docker/Dockerfile.server
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=ingress
+      - traefik.http.services.blog-server.loadbalancer.server.port=3000
+      - traefik.http.routers.blog-server.service=blog-server
+      - >-
+        traefik.http.routers.blog-server.rule=Host(`wikimoe.com`)
+        && ( PathPrefix(`/admin`)
+        || PathPrefix(`/rss`)
+        || PathPrefix(`/content`)
+        || PathPrefix(`/upload`)
+        || PathPrefix(`/up_works`)
+        || PathPrefix(`/web_demo`)
+        || PathPrefix(`/ucloudImg`)
+        || PathPrefix(`/api/blog`)
+        || Path(`/sitemap.xml`)
+        || Path(`/sitemap.xsl`)
+        || Path(`/ads.txt`) )
+        || Path(`/robots.txt`)
+      - traefik.http.routers.blog-server.entrypoints=web,websecure
+      - traefik.http.routers.blog-server.tls.certresolver=lets-prod
+    env_file:
+      - .env
+    volumes:
+      - ./data/server/log:/server/log
+      - ./data/server/ip2location:/server/utils/ip2location
+      - ./data/server/backups:/server/backups
+      - ./data/server/cache:/server/cache
+      - ./data/server/public:/server/public
+      - ./data/server/secret:/server/secret
+    depends_on:
+      - mongo
+    # ports:
+    #   - "3000:3000"
+    networks:
+      - internal
+      - external
+      - ingress
+
+  mongo:
+    restart: always
+    image: mongo:8.0.15-noble
+    volumes:
+      - ./data/db:/data/db
+    networks:
+      - internal
+
+networks:
+  internal:
+    internal: true
+  external:
+  ingress:
+    external: true

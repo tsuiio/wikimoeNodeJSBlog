@@ -1,0 +1,58 @@
+services:
+  traefik:
+    restart: unless-stopped
+    image: traefik:latest
+    container_name: traefik
+    command:
+      - --log.level=INFO
+      - --providers.docker
+      - --providers.docker.exposedByDefault=false
+      - --api.insecure
+      - --providers.file.directory=/etc/traefik/config
+      - --entryPoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http3.advertisedport=:443 # http3
+      - --certificatesresolvers.lets-prod.acme.httpchallenge.entrypoint=web
+      # - --certificatesresolvers.lets-prod.acme.email=
+      - --certificatesresolvers.lets-prod.acme.keytype=EC256
+      - --certificatesresolvers.lets-prod.acme.storage=/etc/traefik/certs/acme.json
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=ingress
+      - traefik.http.middlewares.dash-auth.basicauth.users= # sudo apt install apache2-utils && htpasswd -c auth.txt username
+      # handle dashboard
+      - traefik.http.routers.traefik-dash.entrypoints=web,websecure
+      - traefik.http.routers.traefik-dash.rule=Host(`xxx.xxx.xx`) && PathPrefix(`/`) # set traefik dashboard host
+      - traefik.http.routers.traefik-dash.middlewares=dash-auth@docker
+      - traefik.http.routers.traefik-dash.tls.certresolver=lets-prod
+      - traefik.http.routers.traefik-dash.service=dashboard@internal
+      # handle api
+      - traefik.http.routers.traefik-dash-api.entrypoints=web,websecure
+      - traefik.http.routers.traefik-dash-api.rule=Host(`xxx.xx.xx`) && PathPrefix(`/api`) # set traefik dashboard host
+      - traefik.http.routers.traefik-dash-api.middlewares=dash-auth@docker
+      - traefik.http.routers.traefik-dash-api.tls.certresolver=lets-prod
+      - traefik.http.routers.traefik-dash-api.service=api@internal
+
+    ports:
+      - 80:80
+      - 443:443/tcp
+      - 443:443/udp
+
+    volumes:
+      # - /var/run/user/1000/podman/podman.sock:/var/run/docker.sock # podman rootless
+      - /var/run/docker.sock:/var/run/docker.sock # docker
+      - ./config:/etc/traefik/config
+      - ./data/certs:/etc/traefik/certs
+    networks:
+      - ingress
+
+networks:
+  ingress:
+    driver: bridge
+    name: ingress
+    ipam:
+      config:
+        - subnet: "172.23.1.0/24"
+        - subnet: "fd23::/112"

@@ -1,0 +1,45 @@
+ARG NODE_VERSION="20.19.5"
+ARG DEBIAN_VERSION="trixie"
+
+FROM docker.io/node:${NODE_VERSION}-${DEBIAN_VERSION}-slim AS builder
+
+WORKDIR /build
+
+COPY --link ["blog/package.json", "blog/yarn.lock", "./"]
+
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+    yarn install --frozen-lockfile
+
+COPY --link blog ./
+
+RUN yarn build
+
+
+FROM docker.io/node:${NODE_VERSION}-${DEBIAN_VERSION}-slim AS runner
+
+ARG UID="991"
+ARG GID="991"
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    ; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
+    && apt-get update \
+    && apt-get install -yqq --no-install-recommends \ 
+    tini 
+
+RUN groupadd -g "${GID}" wikimoe \
+    && useradd -l -u "${UID}" -g "${GID}" -m -d /blog wikimoe
+
+USER wikimoe
+WORKDIR /blog
+
+COPY --chown=wikimoe:wikimoe --from=builder /build/build/.output ./.output
+COPY --chown=wikimoe:wikimoe --from=builder /build/build/package.json ./
+COPY --chown=wikimoe:wikimoe --from=builder /build/build/start.js ./
+
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+    yarn install --frozen-lockfile
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["yarn", "start"]
