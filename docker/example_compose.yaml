@@ -43,8 +43,8 @@ services:
         || PathPrefix(`/api/blog`)
         || Path(`/sitemap.xml`)
         || Path(`/sitemap.xsl`)
-        || Path(`/ads.txt`) )
-        || Path(`/robots.txt`)
+        || Path(`/ads.txt`)
+        || Path(`/robots.txt`) )
       - traefik.http.routers.blog-server.entrypoints=web,websecure
       - traefik.http.routers.blog-server.tls.certresolver=lets-prod
     env_file:
